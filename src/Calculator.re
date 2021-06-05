@@ -27,7 +27,10 @@ let extractInputs = (~lsd as maybeLSD=?, exprs: list(expr)) => {
           }
         )
     );
-  digits->Belt.List.reduce(0, (acc, digit) => acc * 10 + digit);
+  switch (digits) {
+  | [] => None
+  | _ => Some(digits->Belt.List.reduce(0, (acc, digit) => acc * 10 + digit))
+  };
 };
 
 let initState = () => {register: 0, maybeLastOp: None, exprs: []};
@@ -38,7 +41,10 @@ let make = () => {
   let display =
     switch (exprs) {
     | [Digit(lsd), ...remainderExprs] =>
-      remainderExprs |> extractInputs(~lsd) |> string_of_int
+      remainderExprs
+      |> extractInputs(~lsd)
+      |> Belt.Option.getExn
+      |> string_of_int
     | []
     | [Op(_), ..._]
     | [Eval, ..._] => string_of_int(register)
@@ -48,14 +54,17 @@ let make = () => {
     switch (expr) {
     | Eval
     | Op(_) =>
-      let input = extractInputs(exprs);
-      switch (maybeLastOp) {
-      | Some(Add) => register + input
-      | Some(Minus) => register - input
-      | Some(Multiply) => register * input
-      | Some(Divide) => register / input
-      | None => input
-      };
+      switch (extractInputs(exprs)) {
+      | Some(input) =>
+        switch (maybeLastOp) {
+        | Some(Add) => register + input
+        | Some(Minus) => register - input
+        | Some(Multiply) => register * input
+        | Some(Divide) => register / input
+        | None => input
+        }
+      | None => register
+      }
     | Digit(_) => register
     };
 
@@ -66,8 +75,8 @@ let make = () => {
         maybeLastOp:
           switch (expr) {
           | Op(op) => Some(op)
-          | Digit(_)
-          | Eval => state.maybeLastOp
+          | Eval => None
+          | Digit(_) => state.maybeLastOp
           },
         exprs: state.exprs->Belt.List.add(expr),
       }
